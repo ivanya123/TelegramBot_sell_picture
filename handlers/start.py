@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
 from keyboard.all_kb import main_kb
-from keyboard.inline_kbs import inline_link_kb, inline_canvas_base, inline_canvas_size, inline_canvas_height_and_width,\
+from keyboard.inline_kbs import inline_link_kb, inline_canvas_base, inline_canvas_size, inline_canvas_height_and_width, \
     inline_choice
 import asyncio
 from aiogram.utils.chat_action import ChatActionSender
@@ -20,7 +20,6 @@ class StartState(StatesGroup):
     canvas_size = State()
     canvas_height_and_width = State()
     canvas_price = State()
-    # choice = State()
 
 
 @start_router.message(F.text == 'Выбрать основу холста')
@@ -115,19 +114,7 @@ async def start_question(call: CallbackQuery, state: FSMContext):
     await call.message.reply(text)
     await bot.send_message(call.from_user.id, text='Хотите заказать картину???', reply_markup=inline_choice())
     await state.set_state(StartState.canvas_price)
-    # await state.clear()
 
-
-# @start_router.callback_query(F.data, StartState.canvas_price)
-# async def start_question(call: CallbackQuery, state: FSMContext):
-#     await state.update_data(canvas_price=call.data)
-#     data_state = await state.get_data()
-#     with open('info.json', 'r') as f:
-#         data = json.load(f)
-#
-#     await call.message.edit_reply_markup(reply_markup=None)
-#     await call.message.answer(text='Хотите заказать картину???)', reply_markup=inline_choice())
-#     await state.set_state(StartState.choice)
 
 @start_router.callback_query(F.data, StartState.canvas_price)
 async def start_question(call: CallbackQuery, state: FSMContext):
