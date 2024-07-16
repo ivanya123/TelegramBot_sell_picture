@@ -80,6 +80,22 @@ async def get_id_pictures(session: AsyncSession,
     else:
         return
 
+async def get_pictures(session: AsyncSession,
+                       canvas_shape: str,
+                       canvas_base: str,
+                       canvas_size: str,
+                       canvas_height_and_width: str):
+    text = select(Picture).where(and_(Picture.canvas_shape == canvas_shape,
+                                      Picture.canvas_base == canvas_base,
+                                      Picture.canvas_size == canvas_size,
+                                      Picture.canvas_height_and_width == canvas_height_and_width))
+    result = await session.execute(text)
+    picture = result.scalar_one_or_none()
+    if picture:
+        return picture
+    else:
+        return
+
 
 async def add_buyer(session: AsyncSession,
                     username: str,
@@ -109,7 +125,7 @@ async def create_table():
 
 
 async def full_pictures_from_json():
-    with open(r"C:\Users\aples\PycharmProjects\TelegramBot\info.json", "r") as f:
+    with open(r"C:\Users\aples\PycharmProjects\TelegramBot_sell_picture\info.json", "r") as f:
         data = json.load(f)
     async with async_session() as session:
         for shape in data:
@@ -125,8 +141,12 @@ async def full_picture_table(session: AsyncSession):
     pictures = result.scalars().all()
     text = ""
     for row in pictures:
-        buyers = ', '.join(buyer.username for buyer in row.buyer)
-        text += f'id: {row.id}, canvas_shape: {row.canvas_shape},  canvas_base: {row.canvas_base},  canvas_size: {row.canvas_size},  canvas_height_and_width: {row.canvas_height_and_width},  price: {row.price} buyer: {buyers}\n'
+        # buyers = ', '.join(buyer.username for buyer in row.buyer)
+        text += (f'id: {row.id}, Формат: {row.canvas_shape},  '
+                 f': {row.canvas_base},  '
+                 f'canvas_size: {row.canvas_size},  '
+                 f'canvas_height_and_width: {row.canvas_height_and_width},  '
+                 f'price: {row.price}\n\n')
     return text
 
 
@@ -137,4 +157,4 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    asyncio.run(full_pictures_from_json())

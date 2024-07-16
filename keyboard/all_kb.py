@@ -17,7 +17,8 @@ def main_kb(user_telegram_id: int):
 
 def admin_kb():
     kb_list = [
-        [KeyboardButton(text='Добавить новый формат картины в базу данных')]
+        [KeyboardButton(text='Добавить новый формат картины в базу данных'),
+         KeyboardButton(text='Показать все картины'),]
     ]
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True,
                                input_field_placeholder='Админ панель')

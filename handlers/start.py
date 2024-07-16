@@ -11,7 +11,8 @@ from aiogram.utils.chat_action import ChatActionSender
 import json
 from create_bot import bot
 from create_bot import admins
-from db_handler.db_class import add_pictures, async_session
+from db_handler.db_class import add_pictures, async_session, full_picture_table, add_buyer, get_id_pictures, \
+    get_pictures
 
 start_router = Router()
 
@@ -46,6 +47,17 @@ async def admin_start(message: Message):
         await message.answer('Дорогой админ, выберите действие', reply_markup=admin_kb())
     else:
         await message.answer('Вы не админ, нечего тут делать')
+
+
+@start_router.message(F.text == "Показать все картины")
+async def admin_look_pictures(message: Message):
+    async with async_session() as session:
+        text = await full_picture_table(session)
+    if len(text) < 4096:
+        await message.answer(text)
+    if len(text) > 4096:
+        for i in range((len(text) // 4096) + 1):
+            await message.answer(text[i * 4096:(i + 1) * 4096])
 
 
 @start_router.message(F.text == "Добавить новый формат картины в базу данных")
@@ -217,6 +229,28 @@ async def start_question(call: CallbackQuery, state: FSMContext):
         await call.message.edit_reply_markup(reply_markup=None)
         await call.message.answer(text='Отлично, ждите сообщение с подробностями.\n'
                                        'Если хоите уточнить какие то вопросы пишите мне:\n')
+        async with async_session() as session:
+            await add_buyer(session,
+                            call.from_user.username,
+                            str(call.from_user.id),
+                            data_state["canvas_shape"],
+                            data_state["canvas_base"],
+                            data_state["canvas_size"],
+                            data_state["canvas_height_and_width"])
+            picture = await get_pictures(session,
+                                         data_state["canvas_shape"],
+                                         data_state["canvas_base"],
+                                         data_state["canvas_size"],
+                                         data_state["canvas_height_and_width"])
+        for admin in admins:
+            await bot.send_message(admin, text=f"Сделан заказ картины:\n"
+                                               f"id: <b>{picture.id}</b>\n"
+                                               f"Форма: <b>{picture.canvas_shape}</b>\n"
+                                               f"Основа: <b>{picture.canvas_base}</b>\n"
+                                               f"Размер: <b>{picture.canvas_size}</b>, <b>{picture.canvas_height_and_width}</b>\n"
+                                               f"Цена: <b>{picture.canvas_base}</b>\n"
+                                               f"Покупатель: <b>{call.from_user.username}</b>\n"
+                                               f"<a href='tg://user?id={call.from_user.id}'>Связаться с покупателем</a>")
         await state.clear()
     else:
         await call.message.edit_reply_markup(reply_markup=None)
