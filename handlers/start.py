@@ -3,13 +3,15 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
-from keyboard.all_kb import main_kb
+from keyboard.all_kb import main_kb, admin_kb
 from keyboard.inline_kbs import inline_link_kb, inline_canvas_base, inline_canvas_size, inline_canvas_height_and_width, \
-    inline_choice
+    inline_choice, admin_add_picture
 import asyncio
 from aiogram.utils.chat_action import ChatActionSender
 import json
 from create_bot import bot
+from create_bot import admins
+from db_handler.db_class import add_pictures, async_session
 
 start_router = Router()
 
@@ -22,11 +24,101 @@ class StartState(StatesGroup):
     canvas_price = State()
 
 
+class AdminAddPicture(StatesGroup):
+    canvas_shape = State()
+    canvas_base = State()
+    canvas_size = State()
+    canvas_height_and_width = State()
+    price = State()
+    choice = State()
+
+
 @start_router.message(F.text == 'Выбрать основу холста')
 @start_router.message(CommandStart())
 async def start(message: Message):
     await message.answer("Привет, это Любовь, готовьте свои денежки",
                          reply_markup=main_kb(message.from_user.id))
+
+
+@start_router.message(F.text == 'Админка')
+async def admin_start(message: Message):
+    if message.from_user.id in admins:
+        await message.answer('Дорогой админ, выберите действие', reply_markup=admin_kb())
+    else:
+        await message.answer('Вы не админ, нечего тут делать')
+
+
+@start_router.message(F.text == "Добавить новый формат картины в базу данных")
+async def add_picture(message: Message, state: FSMContext):
+    if message.from_user.id in admins:
+        await state.clear()
+        await message.answer("Введите название формата картины", reply_markup=ReplyKeyboardRemove())
+        await state.set_state(AdminAddPicture.canvas_shape)
+    else:
+        await message.answer('Вы не админ, нечего тут делать')
+
+
+@start_router.message(F.text, AdminAddPicture.canvas_shape)
+async def add_picture(message: Message, state: FSMContext):
+    await state.update_data(canvas_shape=message.text)
+    await message.answer("Напишите основу холста")
+    await state.set_state(AdminAddPicture.canvas_base)
+
+
+@start_router.message(F.text, AdminAddPicture.canvas_base)
+async def add_picture(message: Message, state: FSMContext):
+    await state.update_data(canvas_base=message.text)
+    await message.answer("Напишите размер холста")
+    await state.set_state(AdminAddPicture.canvas_size)
+
+
+@start_router.message(F.text, AdminAddPicture.canvas_size)
+async def add_picture(message: Message, state: FSMContext):
+    await state.update_data(canvas_size=message.text)
+    await message.answer("Напишите габариты холста")
+    await state.set_state(AdminAddPicture.canvas_height_and_width)
+
+
+@start_router.message(F.text, AdminAddPicture.canvas_height_and_width)
+async def add_picture(message: Message, state: FSMContext):
+    await state.update_data(canvas_height_and_width=message.text)
+    await message.answer("Напишите цену холста")
+    await state.set_state(AdminAddPicture.price)
+
+
+@start_router.message(F.text, AdminAddPicture.price)
+async def add_picture(message: Message, state: FSMContext):
+    await state.update_data(price=int(message.text))
+    data = await state.get_data()
+    text = (f"Добавить картину в базу данных:\n"
+            f"Форма: {data['canvas_shape']}\n"
+            f"Основа: {data['canvas_base']}\n"
+            f"Размер: {data['canvas_size']}\n"
+            f"Габариты: {data['canvas_height_and_width']}\n"
+            f"Цена: {data['price']}\n")
+    await message.answer(text, reply_markup=admin_add_picture())
+    await state.set_state(AdminAddPicture.choice)
+
+
+@start_router.callback_query(F.data, AdminAddPicture.choice)
+async def add_picture(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    if call.data == 'Да':
+        try:
+            async with async_session() as session:
+                await add_pictures(session,
+                                   data['canvas_shape'],
+                                   data['canvas_base'],
+                                   data['canvas_size'],
+                                   data['canvas_height_and_width'],
+                                   data['price'])
+
+            await call.message.answer("Вы успешно добавили картину в базу данных")
+        except:
+            await call.message.answer("Произошла ошибка при добавлении картини в базу данных")
+    else:
+        await call.message.answer("Вы отменили добавление картины в базу данных")
+    await state.clear()
 
 
 @start_router.message(F.text == 'Обо мне')

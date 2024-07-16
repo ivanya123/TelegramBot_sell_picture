@@ -36,3 +36,11 @@ def inline_choice():
          InlineKeyboardButton(text="Нет, не берите мои деньги!!!", callback_data="Нет")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=list_choice)
+
+
+def admin_add_picture():
+    list_choice = [
+        [InlineKeyboardButton(text="Да, добавьте картину!!!", callback_data="Да"),
+         InlineKeyboardButton(text="Нет, не добавляйте картину!!!", callback_data="Нет")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=list_choice)
