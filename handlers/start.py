@@ -3,7 +3,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
-from keyboard.all_kb import main_kb, admin_kb
+from keyboard.all_kb import main_kb, admin_kb, kb_shape, kb_base, kb_size, kb_height_and_width
 from keyboard.inline_kbs import inline_link_kb, inline_canvas_base, inline_canvas_size, inline_canvas_height_and_width, \
     inline_choice, admin_add_picture
 import asyncio
@@ -12,7 +12,7 @@ import json
 from create_bot import bot
 from create_bot import admins
 from db_handler.db_class import add_pictures, async_session, full_picture_table, add_buyer, get_id_pictures, \
-    get_pictures
+    get_pictures, all_pictures
 
 start_router = Router()
 
@@ -62,9 +62,11 @@ async def admin_look_pictures(message: Message):
 
 @start_router.message(F.text == "Добавить новый формат картины в базу данных")
 async def add_picture(message: Message, state: FSMContext):
+    async with async_session() as session:
+        pictures = await all_pictures(session)
     if message.from_user.id in admins:
         await state.clear()
-        await message.answer("Введите название формата картины", reply_markup=ReplyKeyboardRemove())
+        await message.answer("Введите название формата картины", reply_markup=kb_shape(pictures))
         await state.set_state(AdminAddPicture.canvas_shape)
     else:
         await message.answer('Вы не админ, нечего тут делать')
@@ -72,22 +74,30 @@ async def add_picture(message: Message, state: FSMContext):
 
 @start_router.message(F.text, AdminAddPicture.canvas_shape)
 async def add_picture(message: Message, state: FSMContext):
+    async with async_session() as session:
+        pictures = await all_pictures(session)
     await state.update_data(canvas_shape=message.text)
-    await message.answer("Напишите основу холста")
+    await message.answer("Напишите основу холста", reply_markup=kb_base(pictures))
     await state.set_state(AdminAddPicture.canvas_base)
 
 
 @start_router.message(F.text, AdminAddPicture.canvas_base)
 async def add_picture(message: Message, state: FSMContext):
+    async with async_session() as session:
+        pictures = await all_pictures(session)
     await state.update_data(canvas_base=message.text)
-    await message.answer("Напишите размер холста")
+    await message.answer("Напишите размер холста", reply_markup=kb_size(pictures))
     await state.set_state(AdminAddPicture.canvas_size)
 
 
 @start_router.message(F.text, AdminAddPicture.canvas_size)
 async def add_picture(message: Message, state: FSMContext):
+    async with async_session() as session:
+        pictures = await all_pictures(session)
+    data = await state.get_data()
+    shape = data["canvas_shape"]
     await state.update_data(canvas_size=message.text)
-    await message.answer("Напишите габариты холста")
+    await message.answer("Напишите габариты холста", reply_markup=kb_height_and_width(pictures, shape))
     await state.set_state(AdminAddPicture.canvas_height_and_width)
 
 
@@ -126,7 +136,7 @@ async def add_picture(call: CallbackQuery, state: FSMContext):
                                    data['price'])
 
             await call.message.answer("Вы успешно добавили картину в базу данных")
-        except:
+        except Exception as e:
             await call.message.answer("Произошла ошибка при добавлении картини в базу данных")
     else:
         await call.message.answer("Вы отменили добавление картины в базу данных")
@@ -242,6 +252,7 @@ async def start_question(call: CallbackQuery, state: FSMContext):
                                          data_state["canvas_base"],
                                          data_state["canvas_size"],
                                          data_state["canvas_height_and_width"])
+        print(call.from_user.id)
         for admin in admins:
             await bot.send_message(admin, text=f"Сделан заказ картины:\n"
                                                f"id: <b>{picture.id}</b>\n"

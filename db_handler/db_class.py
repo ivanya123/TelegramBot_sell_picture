@@ -119,6 +119,7 @@ async def add_buyer(session: AsyncSession,
         await session.commit()
 
 
+
 async def create_table():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -148,6 +149,13 @@ async def full_picture_table(session: AsyncSession):
                  f'canvas_height_and_width: {row.canvas_height_and_width},  '
                  f'price: {row.price}\n\n')
     return text
+
+async def all_pictures(session: AsyncSession):
+    result = await session.execute(select(Picture))
+    pictures = result.scalars().all()
+    return pictures
+
+
 
 
 async def main():
