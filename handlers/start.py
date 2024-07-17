@@ -252,14 +252,13 @@ async def start_question(call: CallbackQuery, state: FSMContext):
                                          data_state["canvas_base"],
                                          data_state["canvas_size"],
                                          data_state["canvas_height_and_width"])
-        print(call.from_user.id)
         for admin in admins:
             await bot.send_message(admin, text=f"Сделан заказ картины:\n"
                                                f"id: <b>{picture.id}</b>\n"
                                                f"Форма: <b>{picture.canvas_shape}</b>\n"
                                                f"Основа: <b>{picture.canvas_base}</b>\n"
                                                f"Размер: <b>{picture.canvas_size}</b>, <b>{picture.canvas_height_and_width}</b>\n"
-                                               f"Цена: <b>{picture.canvas_base}</b>\n"
+                                               f"Цена: <b>{picture.price}</b>\n"
                                                f"Покупатель: <b>{call.from_user.username}</b>\n"
                                                f"<a href='tg://user?id={call.from_user.id}'>Связаться с покупателем</a>")
         await state.clear()
