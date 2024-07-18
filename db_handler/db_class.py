@@ -100,9 +100,12 @@ async def get_pictures(session: AsyncSession,
 
 async def delete_pictures(session: AsyncSession, id: int) -> None:
     picture_delete = await session.get(Picture, id)
-    print(picture_delete)
     await session.delete(picture_delete)
     await session.commit()
+
+
+async def update_pictures(session: AsyncSession, id: int, **values) -> None:
+    picture_update = await session.get(Picture, id)
 
 
 async def add_buyer(session: AsyncSession,
