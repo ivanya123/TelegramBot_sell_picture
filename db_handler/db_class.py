@@ -104,9 +104,11 @@ async def delete_pictures(session: AsyncSession, id: int) -> None:
     await session.commit()
 
 
-async def update_pictures(session: AsyncSession, id: int, **values) -> None:
+async def update_pictures(session: AsyncSession, id: int, values: dict) -> None:
     picture_update = await session.get(Picture, id)
-
+    for key, value in values.items():
+        picture_update.__dict__[key] = value
+    await session.commit()
 
 async def add_buyer(session: AsyncSession,
                     username: str,

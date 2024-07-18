@@ -23,6 +23,7 @@ def admin_kb():
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True,
                                input_field_placeholder='Админ панель')
 
+
 def kb_shape(pictures):
     list_shapes = list(set(picture.canvas_shape for picture in pictures))
     kb_list = [
@@ -30,6 +31,7 @@ def kb_shape(pictures):
     ]
 
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True)
+
 
 def kb_base(pictures):
     list_bases = list(set(picture.canvas_base for picture in pictures))
@@ -39,6 +41,7 @@ def kb_base(pictures):
 
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True)
 
+
 def kb_size(pictures):
     list_sizes = list(set(picture.canvas_size for picture in pictures))
     kb_list = [
@@ -47,9 +50,19 @@ def kb_size(pictures):
 
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True)
 
+
 def kb_height_and_width(pictures, shape):
-    list_heights_and_widths = list(set(picture.canvas_height_and_width for picture in pictures if picture.canvas_shape == shape))
+    list_heights_and_widths = list(
+        set(picture.canvas_height_and_width for picture in pictures if picture.canvas_shape == shape))
     kb_list = [
         [KeyboardButton(text=height_and_width) for height_and_width in list_heights_and_widths]
     ]
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True)
+
+
+def ad_update_choice():
+    list_choice = ['Все', "Цену", "Форму", "Размер", "Габариты"]
+    kb_list_choice = [
+        [KeyboardButton(text=choice) for choice in list_choice]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb_list_choice, resize_keyboard=True, one_time_keyboard=True)

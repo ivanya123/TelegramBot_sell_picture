@@ -3,7 +3,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
-from keyboard.all_kb import main_kb, admin_kb, kb_shape, kb_base, kb_size, kb_height_and_width
+from keyboard.all_kb import main_kb, admin_kb, kb_shape, kb_base, kb_size, kb_height_and_width, ad_update_choice
 from keyboard.inline_kbs import inline_link_kb, inline_canvas_base, inline_canvas_size, inline_canvas_height_and_width, \
     inline_choice, admin_add_picture
 import asyncio
@@ -270,7 +270,6 @@ async def start_question(call: CallbackQuery, state: FSMContext):
 
 class AdminDeletePictures(StatesGroup):
     id = State()
-    choice = State()
 
 
 @start_router.message(F.text == "Удалить картину")
@@ -300,3 +299,32 @@ async def delete_picture(message: Message, state: FSMContext):
     except Exception as e:
         await message.answer(f'При удалении произошла ошибка {e}')
 
+
+class AdminUpdatePicture(StatesGroup):
+    id = State()
+
+
+@start_router.message(F.text == 'Изменить картину')
+async def update_picture(message: Message, state: FSMContext):
+    if message.from_user.id in admins:
+        async with async_session() as session:
+            text = await full_picture_table(session)
+        if len(text) < 4096:
+            await message.answer(text)
+        if len(text) > 4096:
+            for i in range((len(text) // 4096) + 1):
+                await message.answer(text[i * 4096:(i + 1) * 4096])
+        await message.answer(text='Напишите id картины которую хотите изменить.')
+        await state.set_state(AdminUpdatePicture.id)
+
+
+@start_router.message(F.text, AdminUpdatePicture.id)
+async def update_picture(message: Message, state: FSMContext):
+    with async_session() as session:
+        all_picture = await all_pictures(session)
+    list_id_picture = [picture.id for picture in all_picture]
+    await state.update_data(id=int(message.text))
+    if int(message.text.strip()) in list_id_picture:
+        await message.answer(text='Что хотите изменить', reply_markup=ad_update_choice())
+    else:
+        await message.answer(text=f"{message.text} нет в базе данных")
