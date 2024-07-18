@@ -80,6 +80,7 @@ async def get_id_pictures(session: AsyncSession,
     else:
         return
 
+
 async def get_pictures(session: AsyncSession,
                        canvas_shape: str,
                        canvas_base: str,
@@ -95,6 +96,13 @@ async def get_pictures(session: AsyncSession,
         return picture
     else:
         return
+
+
+async def delete_pictures(session: AsyncSession, id: int) -> None:
+    picture_delete = await session.get(Picture, id)
+    print(picture_delete)
+    await session.delete(picture_delete)
+    await session.commit()
 
 
 async def add_buyer(session: AsyncSession,
@@ -119,14 +127,13 @@ async def add_buyer(session: AsyncSession,
         await session.commit()
 
 
-
 async def create_table():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def full_pictures_from_json():
-    with open(r"C:\Users\aples\PycharmProjects\TelegramBot_sell_picture\info.json", "r") as f:
+    with open(r"C:\Users\aples\PycharmProjects\TelegramBot\info.json", "r") as f:
         data = json.load(f)
     async with async_session() as session:
         for shape in data:
@@ -150,12 +157,11 @@ async def full_picture_table(session: AsyncSession):
                  f'price: {row.price}\n\n')
     return text
 
+
 async def all_pictures(session: AsyncSession):
     result = await session.execute(select(Picture))
     pictures = result.scalars().all()
     return pictures
-
-
 
 
 async def main():
@@ -165,4 +171,5 @@ async def main():
 
 
 if __name__ == '__main__':
+    # asyncio.run(create_table())
     asyncio.run(full_pictures_from_json())

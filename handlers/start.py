@@ -12,7 +12,7 @@ import json
 from create_bot import bot
 from create_bot import admins
 from db_handler.db_class import add_pictures, async_session, full_picture_table, add_buyer, get_id_pictures, \
-    get_pictures, all_pictures
+    get_pictures, all_pictures, delete_pictures
 
 start_router = Router()
 
@@ -224,7 +224,7 @@ async def start_question(call: CallbackQuery, state: FSMContext):
            f'<b>Габариты</b>: {data_state["canvas_height_and_width"]}\n' \
            f'<tg-spoiler>Но мои картины бесценны,\n' \
            f'Для вас сделаю исключение\n' \
-           f'Цена составит: <b>{price} руб.</b></tg-spoiler>'
+           f'Максимальная цена: <b>{price} руб.</b></tg-spoiler>'
     await call.message.reply(text)
     await bot.send_message(call.from_user.id, text='Хотите заказать картину???', reply_markup=inline_choice())
     await state.set_state(StartState.canvas_price)
@@ -266,3 +266,37 @@ async def start_question(call: CallbackQuery, state: FSMContext):
         await call.message.edit_reply_markup(reply_markup=None)
         await call.message.answer(text=r'Очень жаль, для выбора другой картины напишите \start')
         await state.clear()
+
+
+class AdminDeletePictures(StatesGroup):
+    id = State()
+    choice = State()
+
+
+@start_router.message(F.text == "Удалить картину")
+async def delete_picture(message: Message, state: FSMContext):
+    if message.from_user.id in admins:
+        async with async_session() as session:
+            text = await full_picture_table(session)
+        if len(text) < 4096:
+            await message.answer(text)
+        if len(text) > 4096:
+            for i in range((len(text) // 4096) + 1):
+                await message.answer(text[i * 4096:(i + 1) * 4096])
+        await message.answer(text='Напишите id картины которую хотите удалить. Или несколько id через запятую')
+        await state.set_state(AdminDeletePictures.id)
+
+
+@start_router.message(F.text, AdminDeletePictures.id)
+async def delete_picture(message: Message, state: FSMContext):
+    list_id = [int(i.strip()) for i in message.text.split(',')]
+    print(list_id)
+    try:
+        async with async_session() as session:
+            for i in list_id:
+                await delete_pictures(session, i)
+
+        await message.answer(text=f"Удалены картины {', '.join(str(i) for i in list_id)}")
+    except Exception as e:
+        await message.answer(f'При удалении произошла ошибка {e}')
+
