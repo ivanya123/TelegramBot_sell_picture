@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Sequence
 from datetime import datetime
 from sqlalchemy import create_engine, insert, ForeignKey, UniqueConstraint, select, and_
 from sqlalchemy.orm import Session, DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, selectinload
@@ -98,17 +98,20 @@ async def get_pictures(session: AsyncSession,
         return
 
 
-async def delete_pictures(session: AsyncSession, id: int) -> None:
-    picture_delete = await session.get(Picture, id)
+async def delete_pictures(session: AsyncSession, index: int) -> None:
+    picture_delete = await session.get(Picture, index)
     await session.delete(picture_delete)
     await session.commit()
 
 
-async def update_pictures(session: AsyncSession, id: int, values: dict) -> None:
-    picture_update = await session.get(Picture, id)
+async def update_pictures(session: AsyncSession, index: int, values: dict) -> None:
+    picture_update = await session.get(Picture, index)
     for key, value in values.items():
-        picture_update.__dict__[key] = value
+        exec(f"picture_update.{key}=values['{key}']")
+    picture = select(Picture).where(Picture.id == index)
+    await session.execute(picture)
     await session.commit()
+
 
 async def add_buyer(session: AsyncSession,
                     username: str,
@@ -165,7 +168,7 @@ async def full_picture_table(session: AsyncSession):
 
 async def all_pictures(session: AsyncSession):
     result = await session.execute(select(Picture))
-    pictures = result.scalars().all()
+    pictures: Sequence[Picture] = result.scalars().all()
     return pictures
 
 

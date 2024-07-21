@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
@@ -12,17 +14,9 @@ import json
 from create_bot import bot
 from create_bot import admins
 from db_handler.db_class import add_pictures, async_session, full_picture_table, add_buyer, get_id_pictures, \
-    get_pictures, all_pictures, delete_pictures
+    get_pictures, all_pictures, delete_pictures, update_pictures, Picture
 
 start_router = Router()
-
-
-class StartState(StatesGroup):
-    canvas_shape = State()
-    canvas_base = State()
-    canvas_size = State()
-    canvas_height_and_width = State()
-    canvas_price = State()
 
 
 class AdminAddPicture(StatesGroup):
@@ -136,7 +130,7 @@ async def add_picture(call: CallbackQuery, state: FSMContext):
                                    data['price'])
 
             await call.message.answer("Вы успешно добавили картину в базу данных")
-        except Exception as e:
+        except Exception:
             await call.message.answer("Произошла ошибка при добавлении картини в базу данных")
     else:
         await call.message.answer("Вы отменили добавление картины в базу данных")
@@ -150,84 +144,96 @@ async def about_me(message: Message):
                          reply_markup=main_kb(message.from_user.id))
 
 
+class StartState(StatesGroup):
+    canvas_shape = State()
+    canvas_base = State()
+    canvas_size = State()
+    canvas_height_and_width = State()
+    canvas_price = State()
+    pictures: Sequence[Picture] = None
+
+    def __str__(self):
+        text = ', '.join(str(picture.id) for picture in self.pictures)
+        return text
+
+
 @start_router.message(F.text == 'Выбрать формат картины')
 async def start_question(message: Message, state: FSMContext):
     await state.clear()
-    with open('info.json', 'r') as f:
-        data = json.load(f)
+    StartState.pictures = None
+    async with async_session() as session:
+        pictures: Sequence[Picture] = await all_pictures(session)
+    StartState.pictures = pictures
     await message.answer("Выберите формат картины",
-                         reply_markup=inline_link_kb(data))
+                         reply_markup=inline_link_kb(StartState.pictures))
     await state.set_state(StartState.canvas_shape)
 
 
 @start_router.callback_query(F.data, StartState.canvas_shape)
 async def start_question(call: CallbackQuery, state: FSMContext):
     await state.update_data(canvas_shape=call.data)
-    with open('info.json', 'r') as f:
-        data = json.load(f)
-
     data_state = await state.get_data()
+    StartState.pictures = [picture for picture in StartState.pictures if
+                           picture.canvas_shape == data_state['canvas_shape']]
     await call.answer("Выберите основу холста")
     await call.message.edit_reply_markup(reply_markup=None)
     if data_state["canvas_shape"] == "Нестандартный формат":
-        await call.message.answer('Выберите фигуру', reply_markup=inline_canvas_base(data, data_state))
+        await call.message.answer('Выберите фигуру', reply_markup=inline_canvas_base(StartState.pictures, data_state))
     else:
-        await call.message.answer('Выберите основу холста', reply_markup=inline_canvas_base(data, data_state))
+        await call.message.answer('Выберите основу холста',
+                                  reply_markup=inline_canvas_base(StartState.pictures, data_state))
     await state.set_state(StartState.canvas_base)
 
 
 @start_router.callback_query(F.data, StartState.canvas_base)
 async def start_question(call: CallbackQuery, state: FSMContext):
     await state.update_data(canvas_base=call.data)
-    with open('info.json', 'r') as f:
-        data = json.load(f)
-
     data_state = await state.get_data()
+    StartState.pictures = [picture for picture in StartState.pictures if
+                           picture.canvas_base == data_state['canvas_base']]
+
     await call.answer("Выберите размер холста")
     await call.message.edit_reply_markup(reply_markup=None)
     if data_state["canvas_shape"] == "Нестандартный формат":
-        await call.message.answer('Только на картоне', reply_markup=inline_canvas_size(data, data_state))
+        await call.message.answer('Только на картоне', reply_markup=inline_canvas_size(StartState.pictures, data_state))
     else:
-        await call.message.answer('Выберите размер холста', reply_markup=inline_canvas_size(data, data_state))
+        await call.message.answer('Выберите размер холста',
+                                  reply_markup=inline_canvas_size(StartState.pictures, data_state))
     await state.set_state(StartState.canvas_size)
 
 
 @start_router.callback_query(F.data, StartState.canvas_size)
 async def start_question(call: CallbackQuery, state: FSMContext):
     await state.update_data(canvas_size=call.data)
-    with open('info.json', 'r') as f:
-        data = json.load(f)
-
     data_state = await state.get_data()
+    StartState.pictures = [picture for picture in StartState.pictures if
+                           picture.canvas_size == data_state['canvas_size']]
     await call.message.edit_reply_markup(reply_markup=None)
-    await call.message.answer('Выберите габарит холста', reply_markup=inline_canvas_height_and_width(data, data_state))
+    await call.message.answer('Выберите габарит холста',
+                              reply_markup=inline_canvas_height_and_width(StartState.pictures, data_state))
     await state.set_state(StartState.canvas_height_and_width)
 
 
 @start_router.callback_query(F.data, StartState.canvas_height_and_width)
 async def start_question(call: CallbackQuery, state: FSMContext):
     await state.update_data(canvas_height_and_width=call.data)
-    data_state = await state.get_data()
     await call.message.edit_reply_markup(reply_markup=None)
-    with open('info.json', 'r') as f:
-        data = json.load(f)
+    data_state = await state.get_data()
+    StartState.pictures = [picture for picture in StartState.pictures if
+                           picture.canvas_height_and_width == data_state['canvas_height_and_width']][0]
 
-    canvas_shape = data_state["canvas_shape"]
-    canvas_base = data_state["canvas_base"]
-    canvas_size = data_state["canvas_size"]
-    canvas_height_and_width = data_state["canvas_height_and_width"]
-    price = data[canvas_shape][canvas_base][canvas_size][canvas_height_and_width]
-
-    text = f'Вы выбрали:\n<b>Формат:</b>{data_state["canvas_shape"]}\n' \
-           f'<b>Основа</b>: {data_state["canvas_base"]}\n' \
-           f'<b>Размер</b>: {data_state["canvas_size"]}\n' \
-           f'<b>Габариты</b>: {data_state["canvas_height_and_width"]}\n' \
+    text = f'Вы выбрали:\n<b>Формат:</b>{StartState.pictures.canvas_shape}\n' \
+           f'<b>Основа</b>: {StartState.pictures.canvas_base}\n' \
+           f'<b>Размер</b>: {StartState.pictures.canvas_size}\n' \
+           f'<b>Габариты</b>: {StartState.pictures.canvas_height_and_width}\n' \
            f'<tg-spoiler>Но мои картины бесценны,\n' \
            f'Для вас сделаю исключение\n' \
-           f'Максимальная цена: <b>{price} руб.</b></tg-spoiler>'
+           f'Максимальная цена: <b>{StartState.pictures.price} руб.</b></tg-spoiler>'
     await call.message.reply(text)
     await bot.send_message(call.from_user.id, text='Хотите заказать картину???', reply_markup=inline_choice())
     await state.set_state(StartState.canvas_price)
+    StartState.pictures = None
+
 
 
 @start_router.callback_query(F.data, StartState.canvas_price)
@@ -287,7 +293,7 @@ async def delete_picture(message: Message, state: FSMContext):
 
 
 @start_router.message(F.text, AdminDeletePictures.id)
-async def delete_picture(message: Message, state: FSMContext):
+async def delete_picture(message: Message):
     list_id = [int(i.strip()) for i in message.text.split(',')]
     print(list_id)
     try:
@@ -302,6 +308,10 @@ async def delete_picture(message: Message, state: FSMContext):
 
 class AdminUpdatePicture(StatesGroup):
     id = State()
+    choice = State()
+    price = State()
+    all = State()
+    picture = None
 
 
 @start_router.message(F.text == 'Изменить картину')
@@ -320,11 +330,51 @@ async def update_picture(message: Message, state: FSMContext):
 
 @start_router.message(F.text, AdminUpdatePicture.id)
 async def update_picture(message: Message, state: FSMContext):
-    with async_session() as session:
+    async with async_session() as session:
         all_picture = await all_pictures(session)
     list_id_picture = [picture.id for picture in all_picture]
-    await state.update_data(id=int(message.text))
+    await state.update_data(id=int(message.text.strip()))
     if int(message.text.strip()) in list_id_picture:
+        picture = [picture for picture in all_picture if picture.id == int(message.text.strip())][0]
+        AdminUpdatePicture.picture = picture
         await message.answer(text='Что хотите изменить', reply_markup=ad_update_choice())
+        await state.set_state(AdminUpdatePicture.choice)
     else:
-        await message.answer(text=f"{message.text} нет в базе данных")
+        await message.answer(text=f"{message.text} нет в базе данных. Для изменения начните сценарий заново.")
+        await state.clear()
+
+
+@start_router.message(F.text, AdminUpdatePicture.choice)
+async def update_picture(message: Message, state: FSMContext):
+    await state.update_data(choice=message.text)
+    if message.text == "Цену":
+        await message.answer(text=f"Напишите цену для картины {AdminUpdatePicture.picture.id}:"
+                                  f"\n{AdminUpdatePicture.picture.canvas_shape};"
+                                  f"{AdminUpdatePicture.picture.canvas_base};"
+                                  f"{AdminUpdatePicture.picture.canvas_height_and_width}")
+        await state.set_state(AdminUpdatePicture.price)
+    elif message.text == "Все":
+        await message.answer(text=f"Напишите данные картины в формате(ничего не пропуская)\n"
+                                  f"Форма, основа, размер, габариты, цена")
+        await state.set_state(AdminUpdatePicture.all)
+
+
+@start_router.message(F.text, AdminUpdatePicture.price)
+async def update_picture(message: Message, state: FSMContext):
+    await state.update_data(price=int(message.text.strip()))
+    values = {'price': int(message.text.strip())}
+    async with async_session() as session:
+        await update_pictures(session, index=AdminUpdatePicture.picture.id, values=values)
+    await message.answer(text=f"Цена картины {AdminUpdatePicture.picture.id} изменена на "
+                              f"<b>{int(message.text.strip())}</b>")
+
+
+@start_router.message(F.text, AdminUpdatePicture.all)
+async def update_picture(message: Message):
+    list_param = ['canvas_shape', 'canvas_base', 'canvas_size', 'canvas_height_and_width', 'price']
+    if len(message.text.split()) == 5:
+        values = {key: value.strip() for key, value in zip(list_param, message.text.split(','))}
+        values['price'] = int(values['price'])
+        async with async_session() as session:
+            await update_pictures(session, index=AdminUpdatePicture.picture.id, values=values)
+        await message.answer(text=f"Картина изменена {AdminUpdatePicture.picture.id}")

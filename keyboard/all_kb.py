@@ -17,8 +17,9 @@ def main_kb(user_telegram_id: int):
 
 def admin_kb():
     kb_list = [
-        [KeyboardButton(text='Добавить новый формат картины в базу данных'),
-         KeyboardButton(text='Удалить картину')]
+        [KeyboardButton(text='Добавить новый формат картины в базу данных')],
+        [KeyboardButton(text='Удалить картину'),
+         KeyboardButton(text='Изменить картину')]
     ]
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True,
                                input_field_placeholder='Админ панель')
@@ -44,9 +45,8 @@ def kb_base(pictures):
 
 def kb_size(pictures):
     list_sizes = list(set(picture.canvas_size for picture in pictures))
-    kb_list = [
-        [KeyboardButton(text=size) for size in list_sizes]
-    ]
+    kb_list = [[KeyboardButton(text=size)] for size in list_sizes]
+
 
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True)
 
@@ -62,7 +62,6 @@ def kb_height_and_width(pictures, shape):
 
 def ad_update_choice():
     list_choice = ['Все', "Цену", "Форму", "Размер", "Габариты"]
-    kb_list_choice = [
-        [KeyboardButton(text=choice) for choice in list_choice]
-    ]
+    kb_list_choice = [[KeyboardButton(text=choice)] for choice in list_choice]
+
     return ReplyKeyboardMarkup(keyboard=kb_list_choice, resize_keyboard=True, one_time_keyboard=True)
