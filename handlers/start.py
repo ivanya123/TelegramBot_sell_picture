@@ -1,10 +1,10 @@
 from typing import Sequence
-
+from sqlalchemy import select
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
+from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from keyboard.all_kb import main_kb, admin_kb, kb_shape, kb_base, kb_size, kb_height_and_width, ad_update_choice
 from keyboard.inline_kbs import inline_link_kb, inline_canvas_base, inline_canvas_size, inline_canvas_height_and_width, \
     inline_choice, admin_add_picture
@@ -13,24 +13,16 @@ from aiogram.utils.chat_action import ChatActionSender
 import json
 from create_bot import bot
 from create_bot import admins
-from db_handler.db_class import add_pictures, async_session, full_picture_table, add_buyer, get_id_pictures, \
-    get_pictures, all_pictures, delete_pictures, update_pictures, Picture
+from db_handler.db_function import add_pictures, async_session, full_picture_table, add_buyer, get_id_pictures, \
+    get_pictures, all_pictures, delete_pictures, update_pictures, Picture, Buyer, full_buyer_table, update_buyer
 
 start_router = Router()
 
 
-class AdminAddPicture(StatesGroup):
-    canvas_shape = State()
-    canvas_base = State()
-    canvas_size = State()
-    canvas_height_and_width = State()
-    price = State()
-    choice = State()
-
-
 @start_router.message(F.text == 'Выбрать основу холста')
 @start_router.message(CommandStart())
-async def start(message: Message):
+async def start(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer("Привет, это Любовь, готовьте свои денежки",
                          reply_markup=main_kb(message.from_user.id))
 
@@ -54,10 +46,21 @@ async def admin_look_pictures(message: Message):
             await message.answer(text[i * 4096:(i + 1) * 4096])
 
 
+class AdminAddPicture(StatesGroup):
+    canvas_shape = State()
+    canvas_base = State()
+    canvas_size = State()
+    canvas_height_and_width = State()
+    price = State()
+    choice = State()
+    pictures: Sequence[Picture] = None
+
+
 @start_router.message(F.text == "Добавить новый формат картины в базу данных")
 async def add_picture(message: Message, state: FSMContext):
     async with async_session() as session:
         pictures = await all_pictures(session)
+    AdminAddPicture.pictures = pictures
     if message.from_user.id in admins:
         await state.clear()
         await message.answer("Введите название формата картины", reply_markup=kb_shape(pictures))
@@ -68,30 +71,24 @@ async def add_picture(message: Message, state: FSMContext):
 
 @start_router.message(F.text, AdminAddPicture.canvas_shape)
 async def add_picture(message: Message, state: FSMContext):
-    async with async_session() as session:
-        pictures = await all_pictures(session)
     await state.update_data(canvas_shape=message.text)
-    await message.answer("Напишите основу холста", reply_markup=kb_base(pictures))
+    await message.answer("Напишите основу холста", reply_markup=kb_base(AdminAddPicture.pictures))
     await state.set_state(AdminAddPicture.canvas_base)
 
 
 @start_router.message(F.text, AdminAddPicture.canvas_base)
 async def add_picture(message: Message, state: FSMContext):
-    async with async_session() as session:
-        pictures = await all_pictures(session)
     await state.update_data(canvas_base=message.text)
-    await message.answer("Напишите размер холста", reply_markup=kb_size(pictures))
+    await message.answer("Напишите размер холста", reply_markup=kb_size(AdminAddPicture.pictures))
     await state.set_state(AdminAddPicture.canvas_size)
 
 
 @start_router.message(F.text, AdminAddPicture.canvas_size)
 async def add_picture(message: Message, state: FSMContext):
-    async with async_session() as session:
-        pictures = await all_pictures(session)
     data = await state.get_data()
     shape = data["canvas_shape"]
     await state.update_data(canvas_size=message.text)
-    await message.answer("Напишите габариты холста", reply_markup=kb_height_and_width(pictures, shape))
+    await message.answer("Напишите габариты холста", reply_markup=kb_height_and_width(AdminAddPicture.pictures, shape))
     await state.set_state(AdminAddPicture.canvas_height_and_width)
 
 
@@ -233,7 +230,6 @@ async def start_question(call: CallbackQuery, state: FSMContext):
     await bot.send_message(call.from_user.id, text='Хотите заказать картину???', reply_markup=inline_choice())
     await state.set_state(StartState.canvas_price)
     StartState.pictures = None
-
 
 
 @start_router.callback_query(F.data, StartState.canvas_price)
@@ -378,3 +374,78 @@ async def update_picture(message: Message):
         async with async_session() as session:
             await update_pictures(session, index=AdminUpdatePicture.picture.id, values=values)
         await message.answer(text=f"Картина изменена {AdminUpdatePicture.picture.id}")
+
+
+class AdSetPrice(StatesGroup):
+    id = State()
+    price = State()
+    buyer: Sequence[Buyer] = None
+    pictures: Sequence[Picture] = None
+
+
+@start_router.message(F.text == "Изменить статус заказа")
+async def set_price(message: Message, state: FSMContext):
+    await state.clear()
+    if message.from_user.id in admins:
+        async with async_session() as session:
+            text, AdSetPrice.buyer = await full_buyer_table(session)
+        if len(text) < 4096:
+            await message.answer(text)
+        if len(text) > 4096:
+            for i in range((len(text) // 4096) + 1):
+                await message.answer(text[i * 4096:(i + 1) * 4096])
+        await message.answer(text=f"Выберите ID заказа для активации и назначении цены!!!")
+        await state.set_state(AdSetPrice.id)
+
+
+@start_router.message(F.text, AdSetPrice.id)
+async def set_price(message: Message, state: FSMContext):
+    await state.update_data(id=int(message.text.strip()))
+    try:
+        AdSetPrice.buyer = [buyer for buyer in AdSetPrice.buyer if buyer.id == int(message.text.strip())][0]
+        await message.answer(
+            text="Напишите цену на картину в данном заказе\n"
+                 "Для деактивации заказа напишите 'Убрать заказ'",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[[KeyboardButton(text='Убрать заказ')]], resize_keyboard=True, one_time_keyboard=True
+            )
+        )
+        await state.set_state(AdSetPrice.price)
+    except IndexError:
+        await message.answer(text=f"Картины с таким id нет в Базе Данных, введите снова:")
+
+
+@start_router.message(F.text, AdSetPrice.price)
+async def set_price(message: Message, state: FSMContext):
+    if message.text.isdigit():
+        await state.update_data(price=int(message.text.strip()))
+        async with async_session() as session:
+            await update_buyer(session, AdSetPrice.buyer, int(message.text.strip()))
+        await message.answer(text=f"Заказ активен:\n"
+                                  f"ID заказа: {AdSetPrice.buyer.id}\n"
+                                  f"Картина: {AdSetPrice.buyer.picture.canvas_shape}-"
+                                  f"{AdSetPrice.buyer.picture.canvas_base}-"
+                                  f"{AdSetPrice.buyer.picture.canvas_height_and_width}\n"
+                                  f"Финальная цена: {int(message.text.strip())}")
+        await state.clear()
+
+    elif message.text == 'Убрать заказ':
+        async with async_session() as session:
+            buyer = await session.get(Buyer, AdSetPrice.buyer.id)
+            buyer.status = False
+            stmt = select(Buyer)
+            await session.execute(stmt)
+            await session.commit()
+            await message.answer("Изменения внесены!")
+            await state.clear()
+
+    else:
+        await message.answer(text="Введите целое число или 'Убрать заказ'.")
+
+
+@start_router.message(F.text == "Посмотреть заказы")
+async def see_orders(message: Message):
+    if message.from_user.id in admins:
+        async with async_session() as session:
+            text = await full_buyer_table(session)
+        await message.answer(text=text)

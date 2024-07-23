@@ -19,7 +19,9 @@ def admin_kb():
     kb_list = [
         [KeyboardButton(text='Добавить новый формат картины в базу данных')],
         [KeyboardButton(text='Удалить картину'),
-         KeyboardButton(text='Изменить картину')]
+         KeyboardButton(text='Изменить картину')],
+        [KeyboardButton(text='Посмотреть заказы')],
+        [KeyboardButton(text='Изменить статус заказа')]
     ]
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True,
                                input_field_placeholder='Админ панель')
@@ -54,9 +56,7 @@ def kb_size(pictures):
 def kb_height_and_width(pictures, shape):
     list_heights_and_widths = list(
         set(picture.canvas_height_and_width for picture in pictures if picture.canvas_shape == shape))
-    kb_list = [
-        [KeyboardButton(text=height_and_width) for height_and_width in list_heights_and_widths]
-    ]
+    kb_list = [[KeyboardButton(text=height_and_width)] for height_and_width in list_heights_and_widths]
     return ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True)
 
 
